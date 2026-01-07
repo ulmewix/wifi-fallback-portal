@@ -1,5 +1,7 @@
 # wifi-fallback-portal
 
+This program is primarily designed for the Raspberry Pi Zero 2 W. Its purpose is to simplify initial access to the device and prevent losing connectivity once it is deployed.
+
 **Important note:** I am not a professional developer. I have only basic Linux and scripting knowledge. This project was created with a lot of help from AI tools (OpenAI / ChatGPT and Cursor). It’s shared as-is, mainly for personal use and learning.
 
 What it does (quickly)
@@ -24,4 +26,5 @@ Uninstall
 ```bash
 sudo ./uninstall.sh
 ```
+
 
