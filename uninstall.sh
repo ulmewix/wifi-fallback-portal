@@ -32,14 +32,8 @@ remove_sudoers() {
 }
 
 remove_nm_profiles() {
-  read -r -p "Remove NetworkManager profiles (${HOME_CON_NAME}, ${AP_CON_NAME})? [y/N]: " ans
-  if [[ "$ans" =~ ^[Yy]$ ]]; then
-    nmcli con delete "$HOME_CON_NAME" >/dev/null 2>&1 || true
-    nmcli con delete "$AP_CON_NAME" >/dev/null 2>&1 || true
-    echo "NetworkManager profiles removed."
-  else
-    echo "Keeping NetworkManager profiles."
-  fi
+  nmcli con delete "$HOME_CON_NAME" >/dev/null 2>&1 || true
+  nmcli con delete "$AP_CON_NAME" >/dev/null 2>&1 || true
 }
 
 cleanup_files() {
@@ -50,7 +44,7 @@ cleanup_files() {
 
 main() {
   require_root "$@"
-  echo "Uninstalling rpi-wifi-fallback-portal..."
+  echo "Uninstalling wifi-fallback-portal..."
   remove_services
   remove_sudoers
   cleanup_files

@@ -187,7 +187,6 @@ install_files() {
   cp -a "$src/scripts" "$INSTALL_PREFIX/"
   cp -a "$src/config" "$INSTALL_PREFIX/"
   cp -a "$src/systemd" "$INSTALL_PREFIX/"
-  cp -a "$src/sudoers" "$INSTALL_PREFIX/"
 
   install -m 755 "$src/scripts/wifi-fallback.sh" "$BIN_PATH"
 

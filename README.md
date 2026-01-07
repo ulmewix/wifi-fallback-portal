@@ -23,16 +23,16 @@ A self-contained Wi-Fi bootstrap and fallback portal for Raspberry Pi OS using N
 
 ## Install
 
-### Option A: one-liner (curl, run as root)
-```bash
-curl -fsSL https://raw.githubusercontent.com/ulmewix/wifi-fallback-portal/main/install.sh | sudo bash
-```
-
-### Option B: clone then install
+### Primary install (recommended)
 ```bash
 git clone https://github.com/ulmewix/wifi-fallback-portal.git
 cd wifi-fallback-portal
 sudo ./install.sh
+```
+
+### Alternative
+```bash
+curl -fsSL https://raw.githubusercontent.com/ulmewix/wifi-fallback-portal/main/install.sh | sudo bash
 ```
 
 ### Installer flow
@@ -75,11 +75,14 @@ sudo ./install.sh
 - SSH may briefly drop during Wi-Fi switching—this is expected.
 
 ## Troubleshooting
-- Ensure NetworkManager controls the Wi-Fi interface (`nmcli device status`)
-- If AP does not start, check for conflicting autoconnect Wi-Fi profiles and disable them
-- Verify sudoers files in `/etc/sudoers.d/` remain `0440` and owned by root
-- Re-run `wifi-fallback ap` manually to force AP mode
-- Use `nmcli -g NAME,ACTIVE con show` to see active connections
+- Ensure NetworkManager controls the Wi-Fi interface (`nmcli device status`).
+- Check active connections: `nmcli con show --active`
+- Portal reachability: `ss -lntp | grep :4999`
+- Logs: `journalctl -u wifi-fallback-web.service -f`
+- If sudoers fail, re-run installer after fixing `/etc/sudoers.d/` (validation is enforced).
+- If AP does not start, delete stale connections and rerun installer:
+  - `nmcli con delete HOME_WIFI || true`
+  - `nmcli con delete PORTAL_AP || true`
 
 ## Uninstall
 ```bash
