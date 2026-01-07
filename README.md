@@ -47,7 +47,7 @@ sudo ./install.sh
   - Optional `WIFI_IFACE` (default `wlan0`)
 - Writes `/etc/wifi-fallback-portal/portal.env` (`chmod 600`)
 - Creates NetworkManager profiles:
-  - Home: `HOME_WIFI` (autoconnect yes)
+  - Home: `HOME_WIFI` (autoconnect yes, priority 50). Existing connections for the SSID are left intact; this profile is additive.
   - AP: `PORTAL_AP` (autoconnect no, `ipv4.method shared`, `ipv6.method ignore`)
 - Installs `/usr/local/bin/wifi-fallback`
 - Installs sudoers rules for the chosen user (only the network script + `systemctl poweroff`)
@@ -62,6 +62,9 @@ sudo ./install.sh
 - Logs:
   - `journalctl -u wifi-fallback-web.service -f`
   - `journalctl -u wifi-fallback-boot.service -b`
+  - `journalctl -u wifi-fallback-web.service -n 200 --no-pager`
+  - `nmcli con show --active`
+  - `ss -lntp | grep :4999`
 
 ## Usage
 - Visit the portal page to:

@@ -6,7 +6,7 @@ Wants=network-online.target NetworkManager.service
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/wifi-fallback-portal/portal.env
-ExecStart=/bin/bash -c "/usr/local/bin/wifi-fallback connect-home || /usr/local/bin/wifi-fallback ap"
+ExecStart=/bin/bash -lc "/usr/local/bin/wifi-fallback connect-home || /usr/local/bin/wifi-fallback ap"
 TimeoutStartSec=90
 RemainAfterExit=yes
 

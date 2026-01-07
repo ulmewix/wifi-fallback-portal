@@ -17,6 +17,18 @@ log() {
   echo "${LOG_PREFIX} $*"
 }
 
+write_sudoers_file() {
+  local path="$1" line="$2"
+  printf '%s\n' "$line" > "$path"
+  chmod 440 "$path"
+  chown root:root "$path"
+  if ! visudo -cf "$path"; then
+    echo "visudo validation failed for $path" >&2
+    rm -f "$path"
+    exit 1
+  fi
+}
+
 require_root() {
   if [[ $(id -u) -ne 0 ]]; then
     if command -v sudo >/dev/null 2>&1; then
@@ -76,7 +88,7 @@ show_ap_diagnostics() {
   echo
   echo "---- NetworkManager diagnostics (AP) ----"
   nmcli -f all con show "$AP_CON_NAME" || true
-  nmcli -f general,wifi-properties dev show "$iface" || true
+  nmcli -f GENERAL,WIFI-PROPERTIES dev show "$iface" || true
   echo "-----------------------------------------"
 }
 
@@ -94,7 +106,7 @@ create_home_profile() {
   else
     nmcli con add type wifi ifname "$iface" con-name "$HOME_CON_NAME" ssid "$home_ssid" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$home_pw"
   fi
-  nmcli con modify "$HOME_CON_NAME" connection.autoconnect yes ipv4.method auto ipv6.method auto
+  nmcli con modify "$HOME_CON_NAME" connection.autoconnect yes connection.autoconnect-priority 50 ipv4.method auto ipv6.method auto
 }
 
 create_ap_profile() {
@@ -111,11 +123,11 @@ create_ap_profile() {
     fail_ap_setup "Unable to add AP connection." "$iface"
   fi
 
-  if ! nmcli con modify "$AP_CON_NAME" wifi-sec.key-mgmt wpa-psk; then
+  if ! nmcli con modify "$AP_CON_NAME" 802-11-wireless-security.key-mgmt wpa-psk; then
     fail_ap_setup "Unable to set AP key management." "$iface"
   fi
 
-  if ! nmcli con modify "$AP_CON_NAME" wifi-sec.psk "$ap_pw"; then
+  if ! nmcli con modify "$AP_CON_NAME" 802-11-wireless-security.psk "$ap_pw"; then
     fail_ap_setup "Unable to set AP PSK." "$iface"
   fi
 
@@ -127,8 +139,8 @@ create_ap_profile() {
   local mode ipv4 keymgmt
   mode=$(nmcli -g 802-11-wireless.mode con show "$AP_CON_NAME" 2>/dev/null || true)
   ipv4=$(nmcli -g ipv4.method con show "$AP_CON_NAME" 2>/dev/null || true)
-  keymgmt=$(nmcli -g wifi-sec.key-mgmt con show "$AP_CON_NAME" 2>/dev/null || true)
-  if [[ "$mode" != "ap" || "$ipv4" != "shared" || "$keymgmt" != "wpa-psk" ]]; then
+  keymgmt=$(nmcli -g 802-11-wireless-security.key-mgmt con show "$AP_CON_NAME" 2>/dev/null || true)
+  if [[ "$mode" != "ap" || "$ipv4" != "shared" || -z "$keymgmt" || "$keymgmt" != "wpa-psk" ]]; then
     fail_ap_setup "Verification failed (mode=${mode}, ipv4=${ipv4}, keymgmt=${keymgmt})." "$iface"
   fi
 }
@@ -183,9 +195,8 @@ install_files() {
   "$INSTALL_PREFIX/venv/bin/pip" install --upgrade pip
   "$INSTALL_PREFIX/venv/bin/pip" install -r "$INSTALL_PREFIX/web/requirements.txt"
 
-  sed "s/{{SERVICE_USER}}/${user}/g" "$src/sudoers/wifi-fallback-net" > "$SUDOERS_DIR/wifi-fallback-net"
-  sed "s/{{SERVICE_USER}}/${user}/g" "$src/sudoers/wifi-fallback-poweroff" > "$SUDOERS_DIR/wifi-fallback-poweroff"
-  chmod 440 "$SUDOERS_DIR/wifi-fallback-net" "$SUDOERS_DIR/wifi-fallback-poweroff"
+  write_sudoers_file "$SUDOERS_DIR/wifi-fallback-net" "${user} ALL=(root) NOPASSWD: /usr/local/bin/wifi-fallback"
+  write_sudoers_file "$SUDOERS_DIR/wifi-fallback-poweroff" "${user} ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff"
 
   sed "s/{{SERVICE_USER}}/${user}/g" "$src/systemd/wifi-fallback-web.service" > "$SYSTEMD_DIR/wifi-fallback-web.service"
   cp "$src/systemd/wifi-fallback-boot.service" "$SYSTEMD_DIR/wifi-fallback-boot.service"
@@ -205,6 +216,7 @@ enable_services() {
   systemctl daemon-reload
   systemctl enable --now wifi-fallback-web.service
   systemctl enable wifi-fallback-boot.service
+  systemctl status wifi-fallback-web.service --no-pager || true
 }
 
 main() {

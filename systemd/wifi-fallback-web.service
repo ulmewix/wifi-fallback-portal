@@ -9,9 +9,9 @@ User={{SERVICE_USER}}
 Group={{SERVICE_USER}}
 WorkingDirectory=/opt/wifi-fallback-portal/web
 EnvironmentFile=/etc/wifi-fallback-portal/portal.env
-ExecStart=/opt/wifi-fallback-portal/venv/bin/gunicorn --bind 0.0.0.0:${WEB_PORT} --workers 2 --timeout 120 app:app
+ExecStart=/opt/wifi-fallback-portal/venv/bin/gunicorn -b 0.0.0.0:${WEB_PORT} app:app
 Restart=always
-RestartSec=3
+RestartSec=2
 
 [Install]
 WantedBy=multi-user.target
