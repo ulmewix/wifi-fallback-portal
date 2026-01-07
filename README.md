@@ -23,9 +23,9 @@ A self-contained Wi-Fi bootstrap and fallback portal for Raspberry Pi OS using N
 
 ## Install
 
-### Option A: one-liner (curl)
+### Option A: one-liner (curl, run as root)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ulmewix/wifi-fallback-portal/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ulmewix/wifi-fallback-portal/main/install.sh | sudo bash
 ```
 
 ### Option B: clone then install
@@ -43,7 +43,7 @@ sudo ./install.sh
   - `HOME_SSID`, `HOME_PASSWORD`
   - `AP_SSID`, `AP_PASSWORD` (min length 8)
   - `WEB_PORT` (default 4999)
-  - `WEB_API_KEY` (random if blank)
+  - `WEB_API_KEY` (random if blank; used only as `X-Api-Key` for `/api/poweroff`)
   - Optional `WIFI_IFACE` (default `wlan0`)
 - Writes `/etc/wifi-fallback-portal/portal.env` (`chmod 600`)
 - Creates NetworkManager profiles:
@@ -68,7 +68,7 @@ sudo ./install.sh
   - Connect to home Wi-Fi
   - Join a custom network (WPA2-PSK / WPA3-SAE; 802.1X enterprise is rejected)
   - Return to AP mode
-  - Power off (requires `X-Api-Key: <WEB_API_KEY>`)
+  - Power off (requires HTTP header `X-Api-Key: <WEB_API_KEY>`; this is **not** a Wi-Fi password)
 - SSH may briefly drop during Wi-Fi switching—this is expected.
 
 ## Troubleshooting
@@ -88,8 +88,17 @@ sudo ./uninstall.sh
 
 ## Security Notes
 - Least-privilege sudoers: the web user may only run `/usr/local/bin/wifi-fallback` and `systemctl poweroff` without a password.
-- Poweroff endpoint requires `WEB_API_KEY` header `X-Api-Key`.
+- Poweroff endpoint requires `WEB_API_KEY` provided as HTTP header `X-Api-Key` (independent from Wi-Fi credentials).
 - Config is stored at `/etc/wifi-fallback-portal/portal.env` with `chmod 600`.
+
+## Regression Test Quick Steps
+```bash
+nmcli con delete HOME_WIFI || true
+nmcli con delete PORTAL_AP || true
+sudo ./install.sh
+sudo nmcli con up PORTAL_AP
+# Check IP and portal at http://10.42.0.1:4999 (adjust if WEB_PORT changed)
+```
 
 ## Project Status
 Initial reference implementation for Raspberry Pi Zero 2 W; tested against NetworkManager workflows. Contributions welcome.

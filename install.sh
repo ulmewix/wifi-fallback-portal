@@ -11,6 +11,11 @@ SUDOERS_DIR="/etc/sudoers.d"
 BIN_PATH="/usr/local/bin/wifi-fallback"
 HOME_CON_NAME="HOME_WIFI"
 AP_CON_NAME="PORTAL_AP"
+LOG_PREFIX="[install]"
+
+log() {
+  echo "${LOG_PREFIX} $*"
+}
 
 require_root() {
   if [[ $(id -u) -ne 0 ]]; then
@@ -64,6 +69,68 @@ rand_api_key() {
 ensure_dependencies() {
   apt-get update
   DEBIAN_FRONTEND=noninteractive apt-get install -y network-manager python3-venv python3-pip git
+}
+
+show_ap_diagnostics() {
+  local iface="$1"
+  echo
+  echo "---- NetworkManager diagnostics (AP) ----"
+  nmcli -f all con show "$AP_CON_NAME" || true
+  nmcli -f general,wifi-properties dev show "$iface" || true
+  echo "-----------------------------------------"
+}
+
+fail_ap_setup() {
+  local msg="$1" iface="$2"
+  echo "AP profile setup failed: $msg" >&2
+  show_ap_diagnostics "$iface"
+  exit 1
+}
+
+create_home_profile() {
+  local iface="$1" home_ssid="$2" home_pw="$3"
+  if nmcli con show "$HOME_CON_NAME" >/dev/null 2>&1; then
+    nmcli con modify "$HOME_CON_NAME" connection.interface-name "$iface" 802-11-wireless.ssid "$home_ssid" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$home_pw"
+  else
+    nmcli con add type wifi ifname "$iface" con-name "$HOME_CON_NAME" ssid "$home_ssid" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$home_pw"
+  fi
+  nmcli con modify "$HOME_CON_NAME" connection.autoconnect yes ipv4.method auto ipv6.method auto
+}
+
+create_ap_profile() {
+  local iface="$1" ap_ssid="$2" ap_pw="$3"
+
+  if [[ ${#ap_pw} -lt 8 ]]; then
+    fail_ap_setup "AP password must be at least 8 characters." "$iface"
+  fi
+
+  nmcli con delete "$AP_CON_NAME" >/dev/null 2>&1 || true
+
+  log "Creating AP profile '${AP_CON_NAME}' on ${iface}"
+  if ! nmcli con add type wifi ifname "$iface" con-name "$AP_CON_NAME" autoconnect no ssid "$ap_ssid" 802-11-wireless.mode ap ipv4.method shared ipv6.method ignore; then
+    fail_ap_setup "Unable to add AP connection." "$iface"
+  fi
+
+  if ! nmcli con modify "$AP_CON_NAME" wifi-sec.key-mgmt wpa-psk; then
+    fail_ap_setup "Unable to set AP key management." "$iface"
+  fi
+
+  if ! nmcli con modify "$AP_CON_NAME" wifi-sec.psk "$ap_pw"; then
+    fail_ap_setup "Unable to set AP PSK." "$iface"
+  fi
+
+  # Optional channel/band tuning; ignore if unsupported
+  if ! nmcli con modify "$AP_CON_NAME" 802-11-wireless.band bg 802-11-wireless.channel 6 >/dev/null 2>&1; then
+    log "Band/channel tuning not applied (interface may not support it); continuing."
+  fi
+
+  local mode ipv4 keymgmt
+  mode=$(nmcli -g 802-11-wireless.mode con show "$AP_CON_NAME" 2>/dev/null || true)
+  ipv4=$(nmcli -g ipv4.method con show "$AP_CON_NAME" 2>/dev/null || true)
+  keymgmt=$(nmcli -g wifi-sec.key-mgmt con show "$AP_CON_NAME" 2>/dev/null || true)
+  if [[ "$mode" != "ap" || "$ipv4" != "shared" || "$keymgmt" != "wpa-psk" ]]; then
+    fail_ap_setup "Verification failed (mode=${mode}, ipv4=${ipv4}, keymgmt=${keymgmt})." "$iface"
+  fi
 }
 
 prepare_source() {
@@ -130,19 +197,8 @@ configure_nm() {
 
   nmcli radio wifi on || true
 
-  if nmcli con show "$HOME_CON_NAME" >/dev/null 2>&1; then
-    nmcli con modify "$HOME_CON_NAME" connection.interface-name "$iface" 802-11-wireless.ssid "$home_ssid" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$home_pw"
-  else
-    nmcli con add type wifi ifname "$iface" con-name "$HOME_CON_NAME" ssid "$home_ssid" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$home_pw"
-  fi
-  nmcli con modify "$HOME_CON_NAME" connection.autoconnect yes ipv4.method auto ipv6.method auto
-
-  if nmcli con show "$AP_CON_NAME" >/dev/null 2>&1; then
-    nmcli con modify "$AP_CON_NAME" connection.interface-name "$iface" 802-11-wireless.ssid "$ap_ssid"
-  else
-    nmcli con add type wifi ifname "$iface" con-name "$AP_CON_NAME" ssid "$ap_ssid" mode ap
-  fi
-  nmcli con modify "$AP_CON_NAME" connection.autoconnect no ipv4.method shared ipv6.method ignore wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$ap_pw"
+  create_home_profile "$iface" "$home_ssid" "$home_pw"
+  create_ap_profile "$iface" "$ap_ssid" "$ap_pw"
 }
 
 enable_services() {
@@ -159,7 +215,7 @@ main() {
   default_user=$(detect_default_user)
   default_iface="wlan0"
 
-  echo "=== rpi-wifi-fallback-portal installer ==="
+  echo "=== wifi-fallback-portal installer ==="
   local service_user home_ssid home_pw ap_ssid ap_pw web_port api_key iface
   service_user=$(prompt_default "Service user" "${default_user:-pi}")
   home_ssid=$(prompt_default "HOME_SSID" "HOME_SSID")
