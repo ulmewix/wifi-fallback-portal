@@ -1,0 +1,3 @@
+# Allow the portal web user to toggle Wi-Fi via the helper script only.
+{{SERVICE_USER}} ALL=(root) NOPASSWD: /usr/local/bin/wifi-fallback
+

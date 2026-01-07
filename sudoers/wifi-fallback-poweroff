@@ -1,0 +1,3 @@
+# Allow the portal web user to power off the device only.
+{{SERVICE_USER}} ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff
+

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Wi-Fi Fallback Portal</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div class="container">
+    <h1>Wi-Fi Fallback Portal</h1>
+    <p>Manage Wi-Fi connectivity for your Raspberry Pi.</p>
+    {% if busy %}
+      <div class="status busy">Another action is running ({{ elapsed }}s). Please wait.</div>
+    {% endif %}
+
+    <section>
+      <h2>Connect to Home</h2>
+      <button id="btn-home">Connect to Home</button>
+    </section>
+
+    <section>
+      <h2>Custom Network</h2>
+      <label>SSID <input type="text" id="ssid" placeholder="CUSTOM_SSID" /></label>
+      <label>Password <input type="password" id="password" placeholder="CUSTOM_PASSWORD" /></label>
+      <button id="btn-custom">Connect to Custom</button>
+    </section>
+
+    <section>
+      <h2>Access Point</h2>
+      <button id="btn-ap">Switch to AP</button>
+    </section>
+
+    <section>
+      <h2>Power Off</h2>
+      <p>Requires <code>X-Api-Key</code> header set to your configured key.</p>
+      <button id="btn-power">Power Off</button>
+    </section>
+
+    <pre id="output"></pre>
+  </div>
+
+  <script>
+    const output = document.getElementById('output');
+
+    function showResult(res) {
+      output.textContent = JSON.stringify(res, null, 2);
+    }
+
+    async function callApi(url, data = null, headers = {}) {
+      const opts = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+      };
+      if (data) {
+        opts.body = JSON.stringify(data);
+      }
+      const resp = await fetch(url, opts);
+      const body = await resp.json();
+      showResult(body);
+      if (resp.status === 409) {
+        alert('Portal is busy, try again shortly.');
+      }
+      return body;
+    }
+
+    document.getElementById('btn-home').addEventListener('click', () => {
+      callApi('/api/connect-home');
+    });
+
+    document.getElementById('btn-custom').addEventListener('click', () => {
+      const ssid = document.getElementById('ssid').value.trim();
+      const password = document.getElementById('password').value;
+      callApi('/api/connect-custom', { ssid, password });
+    });
+
+    document.getElementById('btn-ap').addEventListener('click', () => {
+      callApi('/api/ap');
+    });
+
+    document.getElementById('btn-power').addEventListener('click', () => {
+      if (!confirm('Power off the device?')) {
+        return;
+      }
+      const apiKey = prompt('Enter API key for poweroff:', '');
+      if (!apiKey) {
+        alert('API key required.');
+        return;
+      }
+      callApi('/api/poweroff', null, { 'X-Api-Key': apiKey });
+    });
+  </script>
+</body>
+</html>
+
