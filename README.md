@@ -23,14 +23,19 @@ A self-contained Wi-Fi bootstrap and fallback portal for Raspberry Pi OS using N
 
 ## Install
 
-### Primary install (recommended)
+## Installation
 ```bash
 git clone https://github.com/ulmewix/wifi-fallback-portal.git
 cd wifi-fallback-portal
+sudo bash install.sh
+```
+
+If `install.sh` is already executable, you can also run:
+```bash
 sudo ./install.sh
 ```
 
-### Alternative
+Alternative one-liner:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ulmewix/wifi-fallback-portal/main/install.sh | sudo bash
 ```
