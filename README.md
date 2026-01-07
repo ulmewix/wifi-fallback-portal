@@ -1,4 +1,4 @@
-# rpi-wifi-fallback-portal
+# wifi-fallback-portal
 
 A self-contained Wi-Fi bootstrap and fallback portal for Raspberry Pi OS using NetworkManager and nmcli. On boot it first tries to join a configured "home" Wi-Fi; if not connected within ~30 seconds it automatically starts its own Access Point (AP) with a simple Flask portal on port 4999. From the portal you can:
 - Connect to the home Wi-Fi
@@ -25,17 +25,13 @@ A self-contained Wi-Fi bootstrap and fallback portal for Raspberry Pi OS using N
 
 ### Option A: one-liner (curl)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<OWNER>/rpi-wifi-fallback-portal/main/install.sh | bash
-```
-Set `REPO_URL` if your repo URL differs:
-```bash
-curl -fsSL https://raw.githubusercontent.com/<OWNER>/rpi-wifi-fallback-portal/main/install.sh | REPO_URL=https://github.com/<OWNER>/rpi-wifi-fallback-portal.git bash
+curl -fsSL https://raw.githubusercontent.com/ulmewix/wifi-fallback-portal/main/install.sh | bash
 ```
 
 ### Option B: clone then install
 ```bash
-git clone https://github.com/<OWNER>/rpi-wifi-fallback-portal.git
-cd rpi-wifi-fallback-portal
+git clone https://github.com/ulmewix/wifi-fallback-portal.git
+cd wifi-fallback-portal
 sudo ./install.sh
 ```
 

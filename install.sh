@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL_DEFAULT="https://github.com/<OWNER>/rpi-wifi-fallback-portal.git"
-PROJECT_NAME="rpi-wifi-fallback-portal"
+REPO_URL_DEFAULT="https://github.com/ulmewix/wifi-fallback-portal.git"
+PROJECT_NAME="wifi-fallback-portal"
 INSTALL_PREFIX="/opt/wifi-fallback-portal"
 CONFIG_DIR="/etc/wifi-fallback-portal"
 CONFIG_FILE="${CONFIG_DIR}/portal.env"
