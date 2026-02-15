@@ -72,9 +72,19 @@ connect_home() {
 
 detect_security_mode() {
   local ssid="$1"
-  local security_line
+  local security_line security
   security_line=$(nmcli -t -f SSID,SECURITY dev wifi list | grep -F "${ssid}:" | head -n1 || true)
-  echo "${security_line#*:}"
+  if [[ -z "$security_line" ]]; then
+    echo "UNKNOWN"
+    return
+  fi
+  security="${security_line#*:}"
+  # OPEN vs SECURED decision: explicit OPEN when NetworkManager reports no security.
+  if [[ -z "$security" || "$security" == "--" ]]; then
+    echo "OPEN"
+    return
+  fi
+  echo "$security"
 }
 
 connect_custom() {
@@ -96,14 +106,21 @@ connect_custom() {
   mode=""
   property=""
 
-  if echo "$security" | grep -qiE "SAE|WPA3"; then
+  # OPEN vs SECURED decision: default to secured when detection is unknown.
+  if [[ "$security" == "UNKNOWN" ]]; then
+    mode="wpa-psk"
+  elif [[ "$security" == "OPEN" ]]; then
+    mode="open"
+  elif echo "$security" | grep -qiE "SAE|WPA3"; then
     mode="sae"
   elif echo "$security" | grep -qiE "WPA"; then
     mode="wpa-psk"
-  elif [[ -z "$security" || "$security" == "--" ]]; then
-    mode="open"
   elif echo "$security" | grep -qi "802\.1X"; then
     log "802.1X/enterprise networks are not supported."
+    bring_up_ap
+    return 1
+  elif echo "$security" | grep -qi "WEP"; then
+    log "WEP networks are not supported."
     bring_up_ap
     return 1
   else
@@ -112,10 +129,17 @@ connect_custom() {
     return 1
   fi
 
-  if [[ "$mode" != "open" && ${#password} -lt 8 ]]; then
-    log "Password too short for secured network."
-    bring_up_ap
-    return 1
+  if [[ "$mode" != "open" ]]; then
+    if [[ -z "$password" ]]; then
+      log "Password required for secured network."
+      bring_up_ap
+      return 1
+    fi
+    if [[ "$mode" =~ ^(wpa-psk|sae)$ && ${#password} -lt 8 ]]; then
+      log "Password too short for secured network."
+      bring_up_ap
+      return 1
+    fi
   fi
 
   log "Connecting to custom SSID '${ssid}' (mode: $mode) on ${WIFI_IFACE}"
@@ -173,4 +197,3 @@ main() {
 }
 
 main "$@"
-
