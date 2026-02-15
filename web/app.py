@@ -62,8 +62,11 @@ def connect_custom():
     password = data.get("password", "")
     if not ssid:
         return jsonify({"status": "error", "error": "Missing SSID"}), 400
-    if len(password) < 8:
-        return jsonify({"status": "error", "error": "Password must be at least 8 characters"}), 400
+    # Password can be empty for open networks
+    # If provided, it must be at least 8 characters for secured networks
+    # The connect script will determine if the network is open or secured
+    if password and len(password) < 8:
+        return jsonify({"status": "error", "error": "Password must be at least 8 characters (or leave empty for open networks)"}), 400
     return run_action("connect-custom", WIFI_CMD + ["connect-custom", ssid, password])
 
 

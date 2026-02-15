@@ -72,19 +72,9 @@ connect_home() {
 
 detect_security_mode() {
   local ssid="$1"
-  local security_line security
+  local security_line
   security_line=$(nmcli -t -f SSID,SECURITY dev wifi list | grep -F "${ssid}:" | head -n1 || true)
-  if [[ -z "$security_line" ]]; then
-    echo "UNKNOWN"
-    return
-  fi
-  security="${security_line#*:}"
-  # OPEN vs SECURED decision: explicit OPEN when NetworkManager reports no security.
-  if [[ -z "$security" || "$security" == "--" ]]; then
-    echo "OPEN"
-    return
-  fi
-  echo "$security"
+  echo "${security_line#*:}"
 }
 
 connect_custom() {
@@ -106,21 +96,14 @@ connect_custom() {
   mode=""
   property=""
 
-  # OPEN vs SECURED decision: default to secured when detection is unknown.
-  if [[ "$security" == "UNKNOWN" ]]; then
-    mode="wpa-psk"
-  elif [[ "$security" == "OPEN" ]]; then
-    mode="open"
-  elif echo "$security" | grep -qiE "SAE|WPA3"; then
+  if echo "$security" | grep -qiE "SAE|WPA3"; then
     mode="sae"
   elif echo "$security" | grep -qiE "WPA"; then
     mode="wpa-psk"
+  elif [[ -z "$security" || "$security" == "--" ]]; then
+    mode="open"
   elif echo "$security" | grep -qi "802\.1X"; then
     log "802.1X/enterprise networks are not supported."
-    bring_up_ap
-    return 1
-  elif echo "$security" | grep -qi "WEP"; then
-    log "WEP networks are not supported."
     bring_up_ap
     return 1
   else
@@ -129,37 +112,63 @@ connect_custom() {
     return 1
   fi
 
-  if [[ "$mode" != "open" ]]; then
-    if [[ -z "$password" ]]; then
-      log "Password required for secured network."
-      bring_up_ap
-      return 1
+  # Validate password requirements based on network type
+  if [[ "$mode" == "open" ]]; then
+    if [[ -n "$password" ]]; then
+      log "Warning: Password provided for open network '${ssid}'. Ignoring password."
     fi
-    if [[ "$mode" =~ ^(wpa-psk|sae)$ && ${#password} -lt 8 ]]; then
-      log "Password too short for secured network."
-      bring_up_ap
-      return 1
-    fi
-  fi
-
-  log "Connecting to custom SSID '${ssid}' (mode: $mode) on ${WIFI_IFACE}"
-  nmcli con add type wifi ifname "$WIFI_IFACE" con-name "$con_name" ssid "$ssid" >/dev/null
-
-  if [[ "$mode" == "sae" ]]; then
-    nmcli con modify "$con_name" wifi-sec.key-mgmt sae wifi-sec.psk "$password"
-  elif [[ "$mode" == "wpa-psk" ]]; then
-    nmcli con modify "$con_name" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$password"
+    log "Connecting to OPEN network '${ssid}' on ${WIFI_IFACE}"
   else
-    nmcli con modify "$con_name" wifi-sec.key-mgmt none
+    if [[ ${#password} -lt 8 ]]; then
+      log "Secured network detected but password is too short (min 8 chars required for ${mode})."
+      bring_up_ap
+      return 1
+    fi
+    log "Connecting to secured network '${ssid}' (${mode}) on ${WIFI_IFACE}"
   fi
 
-  nmcli con up "$con_name" >/dev/null 2>&1 || true
+  # Create connection profile
+  if ! nmcli con add type wifi ifname "$WIFI_IFACE" con-name "$con_name" ssid "$ssid" 2>&1; then
+    log "ERROR: Failed to create connection profile for '${ssid}'."
+    bring_up_ap
+    return 1
+  fi
+
+  # Configure security settings
+  if [[ "$mode" == "sae" ]]; then
+    if ! nmcli con modify "$con_name" wifi-sec.key-mgmt sae wifi-sec.psk "$password" 2>&1; then
+      log "ERROR: Failed to configure WPA3-SAE security."
+      nmcli con delete "$con_name" >/dev/null 2>&1 || true
+      bring_up_ap
+      return 1
+    fi
+  elif [[ "$mode" == "wpa-psk" ]]; then
+    if ! nmcli con modify "$con_name" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$password" 2>&1; then
+      log "ERROR: Failed to configure WPA/WPA2-PSK security."
+      nmcli con delete "$con_name" >/dev/null 2>&1 || true
+      bring_up_ap
+      return 1
+    fi
+  else
+    # Open network - no password
+    if ! nmcli con modify "$con_name" wifi-sec.key-mgmt none 2>&1; then
+      log "ERROR: Failed to configure open network settings."
+      nmcli con delete "$con_name" >/dev/null 2>&1 || true
+      bring_up_ap
+      return 1
+    fi
+  fi
+
+  # Attempt connection
+  local connect_output
+  connect_output=$(nmcli con up "$con_name" 2>&1 || true)
   if wait_for_connection "$con_name" "$CONNECT_TIMEOUT"; then
-    log "Connected to custom network."
+    log "Successfully connected to '${ssid}'."
     return 0
   fi
 
-  log "Custom network not reachable; falling back to AP."
+  log "Failed to connect to '${ssid}'. Error: ${connect_output}"
+  log "Falling back to AP mode."
   nmcli con delete "$con_name" >/dev/null 2>&1 || true
   bring_up_ap
   return 1
@@ -197,3 +206,4 @@ main() {
 }
 
 main "$@"
+
